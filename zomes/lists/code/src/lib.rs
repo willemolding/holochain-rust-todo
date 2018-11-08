@@ -28,7 +28,7 @@ define_zome! {
             sharing: Sharing::Public,
             native_type: List,
             validation_package: || hdk::ValidationPackageDefinition::Entry,
-            validation: |post: List, _ctx: hdk::ValidationData| {
+            validation: |list: List, _ctx: hdk::ValidationData| {
                 Ok(())
             }
         ),
@@ -38,7 +38,7 @@ define_zome! {
             sharing: Sharing::Public,
             native_type: ListItem,
             validation_package: || hdk::ValidationPackageDefinition::Entry,
-            validation: |post: ListItem, _ctx: hdk::ValidationData| {
+            validation: |list_item: ListItem, _ctx: hdk::ValidationData| {
                 Ok(())
             }
         )
