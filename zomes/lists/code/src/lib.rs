@@ -125,14 +125,17 @@ fn handle_get_list(list_addr: HashString) -> JsonString {
     let maybe_list = hdk::get_entry(list_addr.clone())
         .map(|entry| List::try_from(entry.unwrap().value()));
 
-	match maybe_list { // try and get the list
+	match maybe_list {
 		Ok(Ok(list)) => {
+
+            // try and load the list items and convert them to the correct struct
 			let maybe_list_items = get_links_and_load(&list_addr, "items").map(|results| {
                 results.iter().map(|get_links_result| {
                     ListItem::try_from(get_links_result.entry.value().clone()).unwrap()
                 }).collect::<Vec<ListItem>>()
             });
 
+            // if this was successful for all list items then return them
             match maybe_list_items {
                 Ok(list_items) => json!({"name": list.name, "items": list_items}).into(),
                 Err(hdk_err) => hdk_err.into()
