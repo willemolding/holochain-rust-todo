@@ -84,7 +84,7 @@ fn handle_create_users_list(list: UsersList) -> serde_json::Value {
 fn handle_add_user(user: User, list_addr: HashString) -> serde_json::Value {
     match hdk::commit_entry("user", json!(user)) // commit the list item
         .and_then(|item_addr| {
-            hdk::link_entries(&list_addr, &item_addr, "users_item") // if successful, link to list
+            hdk::link_entries(&list_addr, &item_addr, "users_items") // if successful, link to list
         }) {
         Ok(_) => json!({"success": true}),
         Err(hdk_err) => json!({"success": false, "error": hdk_err}),
@@ -95,7 +95,7 @@ fn handle_get_users_list(list_addr: HashString) -> serde_json::Value {
     match hdk::get_entry::<List>(list_addr.clone()) {
         // try and get the list
         Ok(Some(list)) => {
-            match hdk::get_links(&list_addr, "users_item") {
+            match hdk::get_links(&list_addr, "users_items") {
                 // if successful, try to load the linked items
                 Ok(result) => {
                     let users_items: Vec<User> = result

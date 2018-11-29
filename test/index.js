@@ -148,6 +148,8 @@ test("Can add some users to the list of users", t => {
 });
 
 test("Can get a list of all users", t => {
+  t.plan(1);
+
   const create_result = app.call(
     "users",
     "main",
@@ -191,6 +193,5 @@ test("Can get a list of all users", t => {
     JSON.stringify({ list_addr: list_addr })
   );
 
-  t.equal(JSON.parse(get_result).items.length, 2);
-  t.end();
+  t.equal(JSON.parse(get_result).users_items.length, 2);
 });
