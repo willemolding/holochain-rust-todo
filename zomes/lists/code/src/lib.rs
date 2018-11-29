@@ -10,8 +10,6 @@ extern crate holochain_core_types_derive;
 #[macro_use]
 extern crate serde_json;
 
-use hdk::error::ZomeApiResult;
-
 use hdk::holochain_core_types::{
     hash::HashString,
     error::HolochainError,
@@ -24,12 +22,12 @@ use hdk::holochain_core_types::{
 
 
 
-#[derive(Serialize, Deserialize, Debug, Clone, DefaultJson)]
+#[derive(Serialize, Deserialize, Debug, DefaultJson)]
 struct List {
 	name: String
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, DefaultJson)]
+#[derive(Serialize, Deserialize, Debug, DefaultJson)]
 struct ListItem {
 	text: String,
 	completed: bool
@@ -129,52 +127,18 @@ fn handle_get_list(list_addr: HashString) -> JsonString {
 		Ok(Ok(list)) => {
 
             // try and load the list items and convert them to the correct struct
-			let maybe_list_items = get_links_and_load(&list_addr, "items").map(|results| {
-                results.iter().map(|get_links_result| {
-                    ListItem::try_from(get_links_result.entry.value().clone()).unwrap()
-                }).collect::<Vec<ListItem>>()
-            });
+            // please forgive the unwraps. They greatly simplify the example code
+			let list_items = hdk::get_links(&list_addr, "items").unwrap().addresses()
+                .iter()
+                .map(|item_address| {
+                    let entry = hdk::get_entry(item_address.to_owned()).unwrap().unwrap();
+                    ListItem::try_from(entry.value().clone()).unwrap()
+                }).collect::<Vec<ListItem>>();
 
             // if this was successful for all list items then return them
-            match maybe_list_items {
-                Ok(list_items) => json!({"name": list.name, "items": list_items}).into(),
-                Err(hdk_err) => hdk_err.into()
-            }
+            json!({"name": list.name, "items": list_items}).into()
 
 		},
         _ => json!({"successs": false, "message": "No list at this address"}).into()
 	}
 }	
-
-
-
-/*----------  Helper functions  ----------*/
-
-pub struct GetLinksLoadElement {
-    pub address: HashString,
-    pub entry: Entry
-}
-
-pub type GetLinksLoadResult = Vec<GetLinksLoadElement>;
-
-pub fn get_links_and_load<S: Into<String>>(
-    base: &HashString, 
-    tag: S
-) -> ZomeApiResult<GetLinksLoadResult>  {
-    hdk::get_links(base, tag)
-        .map(|result| {
-            result.addresses().iter()
-                .map(|address| {
-                    hdk::get_entry(address.to_owned())
-                        .map(|entry: Option<Entry>| {
-                            GetLinksLoadElement{
-                                address: address.to_owned(),
-                                entry: entry.unwrap()
-                            }
-                        })
-                        .ok()
-                })
-                .filter_map(|elem| elem)
-                .collect()
-        })
-}
