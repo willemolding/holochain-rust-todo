@@ -1,20 +1,35 @@
+#![feature(try_from)]
+use std::convert::TryFrom;
+
 #[macro_use]
 extern crate hdk;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
+extern crate holochain_core_types_derive;
+#[macro_use]
 extern crate serde_json;
 
-use hdk::holochain_dna::zome::entry_types::Sharing;
-use hdk::holochain_core_types::hash::HashString;
+use hdk::error::ZomeApiResult;
+
+use hdk::holochain_core_types::{
+    hash::HashString,
+    error::HolochainError,
+    entry::Entry,
+    dna::zome::entry_types::Sharing,
+    entry::entry_type::EntryType,
+    json::JsonString,
+    cas::content::Address
+};
 
 
-#[derive(Serialize, Deserialize)]
+
+#[derive(Serialize, Deserialize, Debug, Clone, DefaultJson)]
 struct List {
 	name: String
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Clone, DefaultJson)]
 struct ListItem {
 	text: String,
 	completed: bool
@@ -30,7 +45,17 @@ define_zome! {
             validation_package: || hdk::ValidationPackageDefinition::Entry,
             validation: |list: List, _ctx: hdk::ValidationData| {
                 Ok(())
-            }
+            },
+            links: [
+                to!(
+                    "listItem",
+                    tag: "items",
+                    validation_package: || hdk::ValidationPackageDefinition::Entry,
+                    validation: |base: Address, target: Address, _ctx: hdk::ValidationData| {
+                        Ok(())
+                    }
+                )
+            ]
         ),
         entry!(
             name: "listItem",
@@ -54,59 +79,99 @@ define_zome! {
         main (Public) {
             create_list: {
                 inputs: |list: List|,
-                outputs: |result: serde_json::Value|,
+                outputs: |result: JsonString|,
                 handler: handle_create_list
             }
             add_item: {
                 inputs: |list_item: ListItem, list_addr: HashString|,
-                outputs: |result: serde_json::Value|,
+                outputs: |result: JsonString|,
                 handler: handle_add_item
             }
             get_list: {
                 inputs: |list_addr: HashString|,
-                outputs: |result: serde_json::Value|,
+                outputs: |result: JsonString|,
                 handler: handle_get_list
             }
         }
     }
 }
 
-fn handle_create_list(list: List) -> serde_json::Value {
-	match hdk::commit_entry("list", json!(list)) {
-		Ok(address) => json!({"success": true, "address": address}),
-		Err(hdk_err) => json!({"success": false, "error": hdk_err})
+fn handle_create_list(list: List) -> JsonString {
+    let list_entry = Entry::new(EntryType::App("list".into()), list);
+	match hdk::commit_entry(&list_entry) {
+		Ok(address) => json!({"success": true, "address": address}).into(),
+		Err(hdk_err) => hdk_err.into()
 	}
 }
 
-fn handle_add_item(list_item: ListItem, list_addr: HashString) -> serde_json::Value {
-	match hdk::commit_entry("listItem", json!(list_item)) // commit the list item
+fn handle_add_item(list_item: ListItem, list_addr: HashString) -> JsonString {
+    let list_item_entry = Entry::new(EntryType::App("listItem".into()), list_item);
+
+	match hdk::commit_entry(&list_item_entry) // commit the list item
 		.and_then(|item_addr| {
 			hdk::link_entries(&list_addr, &item_addr, "items") // if successful, link to list
 		})
 	 {
 		Ok(_) => {
-			json!({"success": true})
+			json!({"success": true}).into()
 		},
-		Err(hdk_err) => json!({"success": false, "error": hdk_err})
+		Err(hdk_err) => hdk_err.into()
 	}
 }
 
-fn handle_get_list(list_addr: HashString) -> serde_json::Value {
-	match hdk::get_entry::<List>(list_addr.clone()) { // try and get the list
-		Ok(Some(list)) => {
-			match hdk::get_links(&list_addr, "items") { // if successful, try to load the linked items
-				Ok(result) => {
-					let items: Vec<ListItem> = result.links.iter()
-						.map(|item_addr| hdk::get_entry(item_addr.to_owned()) )
-						.filter_map(|elem: Result<Option<ListItem>, _>| elem.unwrap())
-						.collect(); // collect all the items in to a list
+fn handle_get_list(list_addr: HashString) -> JsonString {
 
-					json!({"name": list.name, "items": items})
-				},
-				Err(hdk_err) => hdk_err.to_json()
-			}
+    // try and get the list entry and ensure it is the data type we expect
+    let maybe_list = hdk::get_entry(list_addr.clone())
+        .map(|entry| List::try_from(entry.unwrap().value()));
+
+	match maybe_list { // try and get the list
+		Ok(Ok(list)) => {
+			let maybe_list_items = get_links_and_load(&list_addr, "items").map(|results| {
+                results.iter().map(|get_links_result| {
+                    ListItem::try_from(get_links_result.entry.value().clone()).unwrap()
+                }).collect::<Vec<ListItem>>()
+            });
+
+            match maybe_list_items {
+                Ok(list_items) => json!({"name": list.name, "items": list_items}).into(),
+                Err(hdk_err) => hdk_err.into()
+            }
+
 		},
-		Ok(None) => json!({"error": "no list found at address"}),
-		Err(hdk_err) => hdk_err.to_json()
+        _ => json!({"successs": false, "message": "No list at this address"}).into()
 	}
 }	
+
+
+
+/*----------  Helper functions  ----------*/
+
+pub struct GetLinksLoadElement {
+    pub address: HashString,
+    pub entry: Entry
+}
+
+pub type GetLinksLoadResult = Vec<GetLinksLoadElement>;
+
+pub fn get_links_and_load<S: Into<String>>(
+    base: &HashString, 
+    tag: S
+) -> ZomeApiResult<GetLinksLoadResult>  {
+    hdk::get_links(base, tag)
+        .map(|result| {
+            result.addresses().iter()
+                .map(|address| {
+                    hdk::get_entry(address.to_owned())
+                        .map(|entry: Option<Entry>| {
+                            GetLinksLoadElement{
+                                address: address.to_owned(),
+                                entry: entry.unwrap()
+                            }
+                        })
+                        .ok()
+                })
+                .filter_map(|elem| elem)
+                .collect()
+        })
+}
