@@ -7,17 +7,18 @@ extern crate hdk;
 extern crate serde_derive;
 #[macro_use]
 extern crate holochain_core_types_derive;
-#[macro_use]
-extern crate serde_json;
 
-use hdk::holochain_core_types::{
-    hash::HashString,
-    error::HolochainError,
-    entry::Entry,
-    dna::zome::entry_types::Sharing,
-    entry::entry_type::EntryType,
-    json::JsonString,
-    cas::content::Address
+
+use hdk::{
+    error::{ZomeApiResult, ZomeApiError},
+    holochain_core_types::{
+        hash::HashString,
+        error::HolochainError,
+        dna::entry_types::Sharing,
+        json::JsonString,
+        cas::content::Address,
+        entry::{AppEntryValue, Entry},
+    }
 };
 
 
@@ -32,6 +33,13 @@ struct ListItem {
 	text: String,
 	completed: bool
 }
+
+#[derive(Serialize, Deserialize, Debug, DefaultJson)]
+struct GetListResponse {
+    name: String,
+    items: Vec<ListItem>
+}
+
  
 define_zome! {
     entries: [
@@ -77,68 +85,87 @@ define_zome! {
         main (Public) {
             create_list: {
                 inputs: |list: List|,
-                outputs: |result: JsonString|,
+                outputs: |result: ZomeApiResult<Address>|,
                 handler: handle_create_list
             }
             add_item: {
                 inputs: |list_item: ListItem, list_addr: HashString|,
-                outputs: |result: JsonString|,
+                outputs: |result: ZomeApiResult<Address>|,
                 handler: handle_add_item
             }
             get_list: {
                 inputs: |list_addr: HashString|,
-                outputs: |result: JsonString|,
+                outputs: |result: ZomeApiResult<GetListResponse>|,
                 handler: handle_get_list
             }
         }
     }
 }
 
-fn handle_create_list(list: List) -> JsonString {
-    let list_entry = Entry::new(EntryType::App("list".into()), list);
-	match hdk::commit_entry(&list_entry) {
-		Ok(address) => json!({"success": true, "address": address}).into(),
-		Err(hdk_err) => hdk_err.into()
-	}
+fn handle_create_list(list: List) -> ZomeApiResult<Address> {
+    // define the entry
+    let list_entry = Entry::App(
+        "list".into(),
+        list.into()
+    );
+
+    // commit the entry and return the address
+	hdk::commit_entry(&list_entry)
 }
 
-fn handle_add_item(list_item: ListItem, list_addr: HashString) -> JsonString {
-    let list_item_entry = Entry::new(EntryType::App("listItem".into()), list_item);
 
-	match hdk::commit_entry(&list_item_entry) // commit the list item
-		.and_then(|item_addr| {
-			hdk::link_entries(&list_addr, &item_addr, "items") // if successful, link to list
-		})
-	 {
-		Ok(_) => {
-			json!({"success": true}).into()
-		},
-		Err(hdk_err) => hdk_err.into()
-	}
+fn handle_add_item(list_item: ListItem, list_addr: HashString) -> ZomeApiResult<Address> {
+    // define the entry
+    let list_item_entry = Entry::App(
+        "listItem".into(),
+        list_item.into()
+    );
+
+	let item_addr = hdk::commit_entry(&list_item_entry)?; // commit the list item
+	hdk::link_entries(&list_addr, &item_addr, "items")?; // if successful, link to list
+	Ok(item_addr)
 }
 
-fn handle_get_list(list_addr: HashString) -> JsonString {
 
-    // try and get the list entry and ensure it is the data type we expect
-    let maybe_list = hdk::get_entry(list_addr.clone())
-        .map(|entry| List::try_from(entry.unwrap().value()));
+fn handle_get_list(list_addr: HashString) -> ZomeApiResult<GetListResponse> {
 
-	match maybe_list {
-		Ok(Ok(list)) => {
+    let list = get_as_type::<List>(list_addr.clone())?;
 
-            // try and load the list items and convert them to the correct struct
-            // please forgive the unwraps. They greatly simplify the example code
-			let list_items = hdk::get_links(&list_addr, "items").unwrap().addresses()
-                .iter()
-                .map(|item_address| {
-                    let entry = hdk::get_entry(item_address.to_owned()).unwrap().unwrap();
-                    ListItem::try_from(entry.value().clone()).unwrap()
-                }).collect::<Vec<ListItem>>();
+    // try and load the list items and convert them to the correct struct
+    let list_items = hdk::get_links(&list_addr, "items")?.addresses()
+        .iter()
+        .map(|item_address| {
+            get_as_type::<ListItem>(item_address.to_owned())
+        })
+        .filter_map(Result::ok)
+        .collect::<Vec<ListItem>>();
 
-            // if this was successful for all list items then return them
-            json!({"name": list.name, "items": list_items}).into()
+    // if this was successful for all list items then return them
+    Ok(GetListResponse{
+        name: list.name,
+        items: list_items
+    })
+}
 
-		},
-        _ => json!({"successs": false, "message": "No list at this address"}).into()
-	}
-}	
+
+
+
+
+
+pub fn get_as_type<
+    R: TryFrom<AppEntryValue>
+> (address: HashString) -> ZomeApiResult<R> {
+    let get_result = hdk::get_entry(address)?;
+    let entry = get_result.ok_or(ZomeApiError::Internal("No entry at this address".into()))?;
+    match entry {
+        Entry::App(_, entry_value) => {
+            R::try_from(entry_value.to_owned())
+                .map_err(|_| ZomeApiError::Internal(
+                    "Could not convert get_links result to requested type".to_string())
+                )
+        },
+        _ => Err(ZomeApiError::Internal(
+            "get_links did not return an app entry".to_string())
+        )
+    }
+}
