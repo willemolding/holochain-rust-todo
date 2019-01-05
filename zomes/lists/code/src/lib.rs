@@ -1,13 +1,11 @@
 #![feature(try_from)]
 use std::convert::TryFrom;
-
 #[macro_use]
 extern crate hdk;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
 extern crate holochain_core_types_derive;
-
 
 use hdk::{
     error::{ZomeApiResult, ZomeApiError},
@@ -20,25 +18,6 @@ use hdk::{
         entry::{AppEntryValue, Entry},
     }
 };
-
-
-
-#[derive(Serialize, Deserialize, Debug, DefaultJson)]
-struct List {
-	name: String
-}
-
-#[derive(Serialize, Deserialize, Debug, DefaultJson)]
-struct ListItem {
-	text: String,
-	completed: bool
-}
-
-#[derive(Serialize, Deserialize, Debug, DefaultJson)]
-struct GetListResponse {
-    name: String,
-    items: Vec<ListItem>
-}
 
  
 define_zome! {
@@ -102,6 +81,24 @@ define_zome! {
     }
 }
 
+
+#[derive(Serialize, Deserialize, Debug, DefaultJson)]
+struct List {
+    name: String
+}
+
+#[derive(Serialize, Deserialize, Debug, DefaultJson)]
+struct ListItem {
+    text: String,
+    completed: bool
+}
+
+#[derive(Serialize, Deserialize, Debug, DefaultJson)]
+struct GetListResponse {
+    name: String,
+    items: Vec<ListItem>
+}
+
 fn handle_create_list(list: List) -> ZomeApiResult<Address> {
     // define the entry
     let list_entry = Entry::App(
@@ -122,16 +119,17 @@ fn handle_add_item(list_item: ListItem, list_addr: HashString) -> ZomeApiResult<
     );
 
 	let item_addr = hdk::commit_entry(&list_item_entry)?; // commit the list item
-	hdk::link_entries(&list_addr, &item_addr, "items")?; // if successful, link to list
+	hdk::link_entries(&list_addr, &item_addr, "items")?; // if successful, link to list address
 	Ok(item_addr)
 }
 
 
 fn handle_get_list(list_addr: HashString) -> ZomeApiResult<GetListResponse> {
 
+    // load the list entry. Early return error if it cannot load or is wrong type
     let list = get_as_type::<List>(list_addr.clone())?;
 
-    // try and load the list items and convert them to the correct struct
+    // try and load the list items, filter out errors and collect in a vector
     let list_items = hdk::get_links(&list_addr, "items")?.addresses()
         .iter()
         .map(|item_address| {
@@ -140,7 +138,7 @@ fn handle_get_list(list_addr: HashString) -> ZomeApiResult<GetListResponse> {
         .filter_map(Result::ok)
         .collect::<Vec<ListItem>>();
 
-    // if this was successful for all list items then return them
+    // if this was successful then return the list items
     Ok(GetListResponse{
         name: list.name,
         items: list_items
@@ -148,9 +146,11 @@ fn handle_get_list(list_addr: HashString) -> ZomeApiResult<GetListResponse> {
 }
 
 
+/*========================================
+=            Helper functions            =
+========================================*/
 
-
-
+// this will likely appear in the HDK in a future release
 
 pub fn get_as_type<
     R: TryFrom<AppEntryValue>
@@ -169,3 +169,6 @@ pub fn get_as_type<
         )
     }
 }
+
+/*=====  End of Helper functions  ======*/
+
