@@ -155,7 +155,7 @@ fn handle_get_list(list_addr: HashString) -> ZomeApiResult<GetListResponse> {
 pub fn get_as_type<
     R: TryFrom<AppEntryValue>
 > (address: HashString) -> ZomeApiResult<R> {
-    let get_result = hdk::get_entry(address)?;
+    let get_result = hdk::get_entry(&address)?;
     let entry = get_result.ok_or(ZomeApiError::Internal("No entry at this address".into()))?;
     match entry {
         Entry::App(_, entry_value) => {
