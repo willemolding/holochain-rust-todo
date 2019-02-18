@@ -58,26 +58,25 @@ define_zome! {
         Ok(())
     }
  
-	functions: {
-        // "main" is the name of the capability
-        // "Public" is the access setting of the capability
-        main (Public) {
-            create_list: {
-                inputs: |list: List|,
-                outputs: |result: ZomeApiResult<Address>|,
-                handler: handle_create_list
-            }
-            add_item: {
-                inputs: |list_item: ListItem, list_addr: HashString|,
-                outputs: |result: ZomeApiResult<Address>|,
-                handler: handle_add_item
-            }
-            get_list: {
-                inputs: |list_addr: HashString|,
-                outputs: |result: ZomeApiResult<GetListResponse>|,
-                handler: handle_get_list
-            }
+	functions: [
+        create_list: {
+            inputs: |list: List|,
+            outputs: |result: ZomeApiResult<Address>|,
+            handler: handle_create_list
         }
+        add_item: {
+            inputs: |list_item: ListItem, list_addr: HashString|,
+            outputs: |result: ZomeApiResult<Address>|,
+            handler: handle_add_item
+        }
+        get_list: {
+            inputs: |list_addr: HashString|,
+            outputs: |result: ZomeApiResult<GetListResponse>|,
+            handler: handle_get_list
+        }
+    ]
+    traits: {
+        hc_public [create_list, add_item, get_list]
     }
 }
 
