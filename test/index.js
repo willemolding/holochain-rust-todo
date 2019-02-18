@@ -1,61 +1,40 @@
-// This test file uses the tape testing framework.
-// To learn more, go here: https://github.com/substack/tape
-const test = require('tape');
+const { Config, Scenario } = require('@holochain/holochain-nodejs')
+Scenario.setTape(require('tape'))
+const dnaPath = 'dist/bundle.json'
+const dna = Config.dna(dnaPath, 'happs')
+const agentAlice = Config.agent('alice')
+const instanceAlice = Config.instance(agentAlice, dna)
+const scenario = new Scenario([instanceAlice])
 
-const { Config, Container } = require('@holochain/holochain-nodejs')
-
-const dnaPath = "dist/bundle.json"
-
-// IIFE to keep config-only stuff out of test scope
-const container = (() => {
-  const agentAlice = Config.agent("alice")
-
-  const dna = Config.dna(dnaPath)
-
-  const instanceAlice = Config.instance(agentAlice, dna)
-
-  const containerConfig = Config.container([instanceAlice])
-  return new Container(containerConfig)
-})()
-
-// Initialize the Container
-container.start()
-
-const app = container.makeCaller('alice', dnaPath)
-
-test('Can create a list', (t) => {
-  const create_result = app.call("lists", "main", "create_list", {list: {name: "test list"}})
-  console.log(create_result)
-  t.notEqual(create_result.Ok, undefined)
-  t.end()
+scenario.runTape('Can create a list', async (t, { alice }) => {
+  const createResult = await alice.callSync('lists', 'create_list', { list: { name: 'test list' } })
+  console.log(createResult)
+  t.notEqual(createResult.Ok, undefined)
 })
 
-test('Can add some items', (t) => {
-  const create_result = app.call("lists", "main", "create_list", {list: {name: "test list"}})
-  const list_addr = create_result.Ok
+scenario.runTape('Can add some items', async (t, { alice }) => {
+  const createResult = await alice.callSync('lists', 'create_list', { list: { name: 'test list' } })
+  const listAddr = createResult.Ok
 
-  const result1 = app.call("lists", "main", "add_item", {list_item: {text: "Learn Rust", completed: true}, list_addr: list_addr})
-  const result2 = app.call("lists", "main", "add_item", {list_item: {text: "Master Holochain", completed: false}, list_addr: list_addr})
+  const result1 = await alice.callSync('lists', 'add_item', { list_item: { text: 'Learn Rust', completed: true }, list_addr: listAddr })
+  const result2 = await alice.callSync('lists', 'add_item', { list_item: { text: 'Master Holochain', completed: false }, list_addr: listAddr })
 
   console.log(result1)
   console.log(result2)
 
   t.notEqual(result1.Ok, undefined)
   t.notEqual(result2.Ok, undefined)
-
-  t.end()
 })
 
-test('Can get a list with items', (t) => {
-  const create_result = app.call("lists", "main", "create_list", {list: {name: "test list"}})
-  const list_addr = create_result.Ok
+scenario.runTape('Can get a list with items', async (t, { alice }) => {
+  const createResult = await alice.callSync('lists', 'create_list', { list: { name: 'test list' } })
+  const listAddr = createResult.Ok
 
-  app.call("lists", "main", "add_item", {list_item: {text: "Learn Rust", completed: true}, list_addr: list_addr})
-  app.call("lists", "main", "add_item", {list_item: {text: "Master Holochain", completed: false}, list_addr: list_addr})
+  await alice.callSync('lists', 'add_item', { list_item: { text: 'Learn Rust', completed: true }, list_addr: listAddr })
+  await alice.callSync('lists', 'add_item', { list_item: { text: 'Master Holochain', completed: false }, list_addr: listAddr })
 
-  const get_result = app.call("lists", "main", "get_list", {list_addr: list_addr})
-  console.log(get_result)
+  const getResult = await alice.callSync('lists', 'get_list', { list_addr: listAddr })
+  console.log(getResult)
 
-  t.equal(get_result.Ok.items.length, 2, "there should be 2 items in the list")
-  t.end()
+  t.equal(getResult.Ok.items.length, 2, 'there should be 2 items in the list')
 })
