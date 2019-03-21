@@ -3,4 +3,4 @@ Basic example using holochain-rust
 
 Builds for the 0.0.7-alpha release of holochain-rust
 
-See the [accompanying article](https://medium.com/holochain/first-steps-writing-holochain-happs-with-rust-80ae111960e)
+See the [accompanying article](https://developer.holochain.org/guide/latest/first_steps.html)
