@@ -25,9 +25,8 @@ define_zome! {
             name: "list",
             description: "",
             sharing: Sharing::Public,
-            native_type: List,
             validation_package: || hdk::ValidationPackageDefinition::Entry,
-            validation: |list: List, _ctx: hdk::ValidationData| {
+            validation: |validation_data: hdk::EntryValidationData<List>| {
                 Ok(())
             },
             links: [
@@ -35,7 +34,7 @@ define_zome! {
                     "listItem",
                     tag: "items",
                     validation_package: || hdk::ValidationPackageDefinition::Entry,
-                    validation: |base: Address, target: Address, _ctx: hdk::ValidationData| {
+                    validation: |_validation_data: hdk::LinkValidationData| {
                         Ok(())
                     }
                 )
@@ -45,9 +44,8 @@ define_zome! {
             name: "listItem",
             description: "",
             sharing: Sharing::Public,
-            native_type: ListItem,
             validation_package: || hdk::ValidationPackageDefinition::Entry,
-            validation: |list_item: ListItem, _ctx: hdk::ValidationData| {
+            validation: |validation_data: hdk::EntryValidationData<ListItem>| {
                 Ok(())
             }
         )
@@ -80,12 +78,12 @@ define_zome! {
 }
 
 
-#[derive(Serialize, Deserialize, Debug, DefaultJson)]
+#[derive(Serialize, Deserialize, Debug, Clone, DefaultJson)]
 struct List {
     name: String
 }
 
-#[derive(Serialize, Deserialize, Debug, DefaultJson)]
+#[derive(Serialize, Deserialize, Debug, Clone, DefaultJson)]
 struct ListItem {
     text: String,
     completed: bool
