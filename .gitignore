@@ -1,4 +1,5 @@
 dist/
 node_modules/
 target/
-test/dist
+test/distg
+.vscode/
