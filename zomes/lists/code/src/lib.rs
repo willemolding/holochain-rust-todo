@@ -32,7 +32,7 @@ define_zome! {
             links: [
                 to!(
                     "listItem",
-                    tag: "items",
+                    link_type: "items",
                     validation_package: || hdk::ValidationPackageDefinition::Entry,
                     validation: |_validation_data: hdk::LinkValidationData| {
                         Ok(())
@@ -115,7 +115,7 @@ fn handle_add_item(list_item: ListItem, list_addr: HashString) -> ZomeApiResult<
     );
 
 	let item_addr = hdk::commit_entry(&list_item_entry)?; // commit the list item
-	hdk::link_entries(&list_addr, &item_addr, "items")?; // if successful, link to list address
+	hdk::link_entries(&list_addr, &item_addr, "items", "")?; // if successful, link to list address
 	Ok(item_addr)
 }
 
@@ -126,7 +126,7 @@ fn handle_get_list(list_addr: HashString) -> ZomeApiResult<GetListResponse> {
     let list = hdk::utils::get_as_type::<List>(list_addr.clone())?;
 
     // try and load the list items, filter out errors and collect in a vector
-    let list_items = hdk::get_links(&list_addr, "items")?.addresses()
+    let list_items = hdk::get_links(&list_addr, Some("items".to_string()), None)?.addresses()
         .iter()
         .map(|item_address| {
             hdk::utils::get_as_type::<ListItem>(item_address.to_owned())
