@@ -122,7 +122,7 @@ fn handle_add_item(list_item: ListItem, list_addr: HashString) -> ZomeApiResult<
 
 fn handle_get_list(list_addr: HashString) -> ZomeApiResult<GetListResponse> {
 
-    // load the list entry. Early return error if it cannot load or is wrong type
+    // load the list entry. Early return error if it cannot load or is the gwrong type
     let list = hdk::utils::get_as_type::<List>(list_addr.clone())?;
 
     // try and load the list items, filter out errors and collect in a vector
