@@ -1,6 +1,8 @@
+// This test file uses the tape testing framework.
+// To learn more, go here: https://github.com/substack/tape
 const { Config, Scenario } = require('@holochain/holochain-nodejs')
 Scenario.setTape(require('tape'))
-const dnaPath = 'dist/holochain-rust-todo.dna.json'
+const dnaPath = "./dist/holochain-rust-todo.dna.json"
 const dna = Config.dna(dnaPath, 'happs')
 const agentAlice = Config.agent('alice')
 const instanceAlice = Config.instance(agentAlice, dna)
